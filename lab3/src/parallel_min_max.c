@@ -1,3 +1,4 @@
+
 #include <ctype.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -34,24 +35,33 @@ int main(int argc, char **argv) {
     int c = getopt_long(argc, argv, "f", options, &option_index);
 
     if (c == -1) break;
+    // Далее просто проверяем что входные данные больще 0
 
     switch (c) {
       case 0:
         switch (option_index) {
           case 0:
             seed = atoi(optarg);
-            // your code here
-            // error handling
+             if (seed <= 0 || seed == NULL){ 
+                printf("Error seed\n");
+                return 1;}
+          
             break;
           case 1:
             array_size = atoi(optarg);
-            // your code here
-            // error handling
+
+             if (array_size <= 0 || array_size == NULL){ 
+                printf("Error array_size\n");
+                return 1;}
+         
             break;
           case 2:
             pnum = atoi(optarg);
-            // your code here
-            // error handling
+            if (pnum <= 0 || pnum == NULL) {
+                printf("Error pnum\n");
+                return 1;
+            }
+      
             break;
           case 3:
             with_files = true;
@@ -78,7 +88,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (seed == -1 || array_size == -1 || pnum == -1) {
+  if (seed == -1  || array_size == -1 || pnum == -1) {
     printf("Usage: %s --seed \"num\" --array_size \"num\" --pnum \"num\" \n",
            argv[0]);
     return 1;
@@ -88,23 +98,50 @@ int main(int argc, char **argv) {
   GenerateArray(array, array_size, seed);
   int active_child_processes = 0;
 
+
+  // Создадим объект pipe
+  int p[2], pid, nbytes;
+
+  if (pipe(p) < 0)
+        exit(1);
+
+  // Длина участка, обрабатываемая каждым потоком
+  int chunk = array_size / pnum + (array_size % pnum ? 1: 0);
+
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
 
   for (int i = 0; i < pnum; i++) {
     pid_t child_pid = fork();
     if (child_pid >= 0) {
-      // successful fork
+    
       active_child_processes += 1;
+
+
       if (child_pid == 0) {
-        // child process
 
-        // parallel somehow
+        // начало обработки
+        int start = i * chunk;
+        int end = ((i == pnum - 1) ? array_size: start + chunk);
 
+
+        struct MinMax TrMinMax = GetMinMax(array, start, end);
         if (with_files) {
-          // use files here
+          char filename[32];
+          sprintf(filename, "min_max_%d.txt", i);
+          FILE *file = fopen(filename, "w");
+          if (file == "NULL")
+          {
+            printf("Error file\n");
+            exit(1);
+
+          }
+          fprintf(file, "%d %d", TrMinMax.min, TrMinMax.max);
+          fclose(file);
         } else {
-          // use pipe here
+          //Запись в pipe
+          write(p[1], &TrMinMax, sizeof(struct MinMax));
+
         }
         return 0;
       }
@@ -115,9 +152,9 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Ожидаем завершения всех дочерних процессов
   while (active_child_processes > 0) {
-    // your code here
-
+    wait(NULL);
     active_child_processes -= 1;
   }
 
@@ -129,10 +166,26 @@ int main(int argc, char **argv) {
     int min = INT_MAX;
     int max = INT_MIN;
 
-    if (with_files) {
-      // read from files
+if (with_files) {
+        // Чтение из file
+          char filename[32];
+          sprintf(filename, "min_max_%d.txt", i);
+          FILE *file = fopen(filename, "r");
+          if (file == "NULL")
+          {
+            printf("Error file\n");
+        
+
+          }
+          fscanf(file, "%d %d", &min, &max);
+          fclose(file);
+          remove(filename);
     } else {
-      // read from pipes
+        struct MinMax localMM;
+        // Чтение из pipea
+        read(p[0], &localMM, sizeof(struct MinMax));
+        min = localMM.min;
+        max = localMM.max; 
     }
 
     if (min < min_max.min) min_max.min = min;

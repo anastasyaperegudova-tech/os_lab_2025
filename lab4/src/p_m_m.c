@@ -22,16 +22,25 @@
 static int *child_pida_array;
 static int active_child_processes = 0;
 
-void alarm_handler(int sig) {
-for (int i = 0; i < active_child_processes; i++) {
-if (child_pida_array[i] > 0) {
-kill(child_pida_array[i], SIGKILL);
+void alarm_handler(int sig) 
+{
+    for (int i = 0; i < active_child_processes; i++) 
+    {
+        if (child_pida_array[i] > 0) 
+        {
+            kill(child_pida_array[i], SIGKILL);
+        }
+    }
+}
 //------------------------
 
 int main(int argc, char **argv) {
   int seed = -1;
   int array_size = -1;
   int pnum = -1;
+  //---------------
+  int timeout = -1;
+  //---------------
   bool with_files = false;
 
   while (true) {
